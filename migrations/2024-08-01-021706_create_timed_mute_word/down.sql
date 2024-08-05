@@ -1,0 +1,1 @@
+DROP TABLE timed_mute_word;
