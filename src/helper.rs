@@ -10,7 +10,7 @@ pub type DBPool = Pool<ConnectionManager<SqliteConnection>>;
 pub type DBPooledConnection = PooledConnection<ConnectionManager<SqliteConnection>>;
 
 pub fn establish_connection(database_url: &str) -> SqliteConnection {
-    SqliteConnection::establish(&database_url)
+    SqliteConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
@@ -75,7 +75,7 @@ pub fn update_timed_mute(
         .execute(conn)
         .expect("Error in updating timed mute");
 
-    return res > 0;
+    res > 0
 }
 
 pub fn update_timed_mute_word(
@@ -93,7 +93,7 @@ pub fn update_timed_mute_word(
         .execute(conn)
         .expect("Error in updating timed mute word");
 
-    return res > 0;
+    res > 0
 }
 
 pub fn update_timed_mute_v1(
@@ -111,7 +111,7 @@ pub fn update_timed_mute_v1(
         .execute(conn)
         .expect("Error in updating timed mute");
 
-    return res > 0;
+    res > 0
 }
 
 pub fn update_timed_mute_list_v1(
@@ -129,86 +129,81 @@ pub fn update_timed_mute_list_v1(
         .execute(conn)
         .expect("Error in updating timed mute");
 
-    return res > 0;
+    res > 0
 }
 
 pub fn update_timed_mute_word_list_v1(
     conn: &mut SqliteConnection,
     _actor: &str,
-    timed_mute__word_list: Vec<String>,
+    timed_mute_word_list: Vec<String>,
     status: &i32,
 ) -> bool {
     use crate::schema::timed_mute_word;
 
     let res = diesel::update(timed_mute_word::table)
-        .filter(timed_mute_word::muted_word.eq_any(timed_mute__word_list))
+        .filter(timed_mute_word::muted_word.eq_any(timed_mute_word_list))
         .filter(timed_mute_word::actor.eq(_actor))
         .set(timed_mute_word::status.eq(status))
         .execute(conn)
         .expect("Error in updating timed mute word");
 
-    return res > 0;
+    res > 0
 }
 
 pub fn fetch_timed_mutes(conn: &mut DBPooledConnection, user_id: &str) -> Vec<TimedMute> {
     use crate::schema::timed_mute::actor;
     use crate::schema::timed_mute::dsl::timed_mute;
     use crate::schema::timed_mute::status;
-    let results = timed_mute
+    timed_mute
         .filter(status.eq(0))
         .filter(actor.eq(user_id))
         .select(TimedMute::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_timed_mute_words(conn: &mut DBPooledConnection, user_id: &str) -> Vec<TimedMuteWord> {
     use crate::schema::timed_mute_word::actor;
     use crate::schema::timed_mute_word::dsl::timed_mute_word;
     use crate::schema::timed_mute_word::status;
-    let results = timed_mute_word
+    timed_mute_word
         .filter(status.eq(0))
         .filter(actor.eq(user_id))
         .select(TimedMuteWord::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_timed_mutes_v1(conn: &mut SqliteConnection) -> Vec<TimedMute> {
     use crate::schema::timed_mute::dsl::timed_mute;
     use crate::schema::timed_mute::status;
-    let results = timed_mute
+    timed_mute
         .filter(status.eq(0))
         .select(TimedMute::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_timed_mute_words_v1(conn: &mut SqliteConnection) -> Vec<TimedMuteWord> {
     use crate::schema::timed_mute_word::dsl::timed_mute_word;
     use crate::schema::timed_mute_word::status;
-    let results = timed_mute_word
+    timed_mute_word
         .filter(status.eq(0))
         .select(TimedMuteWord::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_timed_mutes_for_user(conn: &mut DBPooledConnection, _actor: &str) -> Vec<TimedMute> {
     use crate::schema::timed_mute::actor;
     use crate::schema::timed_mute::dsl::timed_mute;
     use crate::schema::timed_mute::status;
-    let results = timed_mute
+    timed_mute
         .filter(status.eq(0))
         .filter(actor.eq(_actor))
         .select(TimedMute::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_timed_mute_words_for_user(
@@ -218,35 +213,32 @@ pub fn fetch_timed_mute_words_for_user(
     use crate::schema::timed_mute_word::actor;
     use crate::schema::timed_mute_word::dsl::timed_mute_word;
     use crate::schema::timed_mute_word::status;
-    let results = timed_mute_word
+    timed_mute_word
         .filter(status.eq(0))
         .filter(actor.eq(_actor))
         .select(TimedMuteWord::as_select())
         .load(conn)
-        .expect("Error loading timed mutes");
-    results
+        .expect("Error loading timed mutes")
 }
 
 pub fn fetch_profile(conn: &mut DBPooledConnection, _did: &str) -> Vec<Profile> {
     use crate::schema::profile::did;
     use crate::schema::profile::dsl::profile;
-    let results = profile
+    profile
         .filter(did.eq(_did))
         .select(Profile::as_select())
         .load::<Profile>(conn)
-        .expect("DB Exception");
-    results
+        .expect("DB Exception")
 }
 
 pub fn fetch_profile_v1(conn: &mut SqliteConnection, _did: &str) -> Vec<Profile> {
     use crate::schema::profile::did;
     use crate::schema::profile::dsl::profile;
-    let results = profile
+    profile
         .filter(did.eq(_did))
         .select(Profile::as_select())
         .load::<Profile>(conn)
-        .expect("DB Exception");
-    results
+        .expect("DB Exception")
 }
 
 pub fn create_profile(conn: &mut DBPooledConnection, did: &str, handle: &str, password: &str) {

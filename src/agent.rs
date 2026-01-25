@@ -69,7 +69,7 @@ pub async fn get_preferences(agent: &BskyAgent) -> Preferences {
 
 pub async fn put_preferences(agent: &BskyAgent, preference: Preferences) {
     use bsky_sdk::api::app::bsky::actor::put_preferences::{Input, InputData};
-    let res = agent
+    agent
         .api
         .app
         .bsky
@@ -80,7 +80,8 @@ pub async fn put_preferences(agent: &BskyAgent, preference: Preferences) {
             },
             extra_data: Ipld::Null,
         })
-        .await;
+        .await
+        .unwrap();
 }
 
 pub async fn unmute_actor_by_handle(agent: &BskyAgent, actor_handle: &str) -> UnmuteActorResult {
@@ -100,11 +101,11 @@ pub async fn unmute_actor_by_handle(agent: &BskyAgent, actor_handle: &str) -> Un
 }
 
 pub async fn add_mute_word_to_pref(agent: &BskyAgent, mute_word: String) {
-    let mut preferences = get_preferences(&agent).await;
-    for mut preference in &mut preferences {
+    let mut preferences = get_preferences(agent).await;
+    for preference in &mut preferences {
         match preference {
-            Union::Refs(ref mut preferenceItem) => match preferenceItem {
-                PreferencesItem::MutedWordsPref(ref mut mute_words_pref) => {
+            Union::Refs(ref mut preference_item) => {
+                if let PreferencesItem::MutedWordsPref(ref mut mute_words_pref) = preference_item {
                     let word = MutedWord {
                         data: MutedWordData {
                             targets: vec!["tag".to_string(), "content".to_string()],
@@ -114,26 +115,24 @@ pub async fn add_mute_word_to_pref(agent: &BskyAgent, mute_word: String) {
                     };
                     mute_words_pref.items.push(word);
                 }
-                _ => {}
-            },
-            Union::Unknown(b) => {}
+            }
+            Union::Unknown(_b) => {}
         }
     }
-    put_preferences(&agent, preferences).await;
+    put_preferences(agent, preferences).await;
 }
 
 pub async fn remove_mute_word_from_pref(agent: &BskyAgent, mute_word: String) {
-    let mut preferences = get_preferences(&agent).await;
-    for mut preference in &mut preferences {
+    let mut preferences = get_preferences(agent).await;
+    for preference in &mut preferences {
         match preference {
-            Union::Refs(ref mut preferenceItem) => match preferenceItem {
-                PreferencesItem::MutedWordsPref(ref mut mute_words_pref) => {
+            Union::Refs(ref mut preference_item) => {
+                if let PreferencesItem::MutedWordsPref(ref mut mute_words_pref) = preference_item {
                     mute_words_pref.items.retain(|word| word.value != mute_word);
                 }
-                _ => {}
-            },
-            Union::Unknown(b) => {}
+            }
+            Union::Unknown(_b) => {}
         }
     }
-    put_preferences(&agent, preferences).await;
+    put_preferences(agent, preferences).await;
 }

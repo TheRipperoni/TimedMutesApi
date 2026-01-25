@@ -20,16 +20,17 @@ use crate::helper::{
     fetch_timed_mutes_v1, update_timed_mute, update_timed_mute_list_v1, update_timed_mute_word,
     update_timed_mute_word_list_v1,
 };
+use crate::models::TimedMute;
 use crate::{DBPool, APPLICATION_JSON, USER_ID_KEY};
 
 fn get_user_id(session: actix_session::Session) -> Result<String, HttpResponse> {
-    return match session.get(USER_ID_KEY) {
+    match session.get(USER_ID_KEY) {
         Ok(user_id_key) => match user_id_key {
             None => Err(HttpResponse::Unauthorized().finish()),
             Some(id) => Ok(id),
         },
         Err(_e) => Err(HttpResponse::InternalServerError().finish()),
-    };
+    }
 }
 
 #[utoipa::path(
@@ -45,11 +46,10 @@ fn get_user_id(session: actix_session::Session) -> Result<String, HttpResponse> 
 )]
 #[get("/timed-mute-words")]
 pub async fn list_word(session: actix_session::Session, pool: Data<DBPool>) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
     let mute_list = fetch_timed_mute_words(&mut conn, user_id.as_str());
     HttpResponse::Ok()
@@ -70,11 +70,10 @@ pub async fn list_word(session: actix_session::Session, pool: Data<DBPool>) -> H
 )]
 #[get("/timed-mutes")]
 pub async fn list(session: actix_session::Session, pool: Data<DBPool>) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
     let mute_list = fetch_timed_mutes(&mut conn, user_id.as_str());
     HttpResponse::Ok()
@@ -99,18 +98,17 @@ pub async fn create(
     pool: Data<DBPool>,
     req: Json<CreateTimedMuteRequest>,
 ) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
 
     let create_time = chrono::offset::Utc::now().timestamp();
     let expire_time = create_time + req.expiration_length;
 
     let profile_list = fetch_profile_v1(&mut conn, user_id.as_str());
-    let profile = profile_list.get(0).unwrap();
+    let profile = profile_list.first().unwrap();
     let agent = get_agent(profile.handle.as_str(), profile.password.as_str())
         .await
         .unwrap();
@@ -177,11 +175,10 @@ pub async fn delete(
     pool: Data<DBPool>,
     req: Json<DeleteTimedMuteRequest>,
 ) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
 
     let success = update_timed_mute(
@@ -195,7 +192,7 @@ pub async fn delete(
         return HttpResponse::Unauthorized().finish();
     }
     let profile_list1 = fetch_profile(&mut conn, user_id.as_str());
-    let profile1 = profile_list1.get(0).unwrap();
+    let profile1 = profile_list1.first().unwrap();
 
     let agent_res = get_agent(profile1.handle.as_str(), profile1.password.as_str())
         .await
@@ -226,18 +223,17 @@ pub async fn create_word(
     pool: Data<DBPool>,
     req: Json<CreateTimedMuteWordRequest>,
 ) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
 
     let create_time = chrono::offset::Utc::now().timestamp();
     let expire_time = create_time + req.expiration_length;
 
     let profile_list = fetch_profile_v1(&mut conn, user_id.as_str());
-    let profile = profile_list.get(0).unwrap();
+    let profile = profile_list.first().unwrap();
     let agent = get_agent(profile.handle.as_str(), profile.password.as_str())
         .await
         .unwrap();
@@ -272,11 +268,10 @@ pub async fn delete_word(
     pool: Data<DBPool>,
     req: Json<DeleteTimedMuteWordRequest>,
 ) -> HttpResponse {
-    let user_id: String;
-    match get_user_id(session) {
-        Ok(val) => user_id = val,
+    let user_id: String = match get_user_id(session) {
+        Ok(val) => val,
         Err(val) => return val,
-    }
+    };
     let mut conn = pool.get().expect("Connection pool error");
 
     let success = update_timed_mute_word(&mut conn, user_id.as_str(), req.muted_word.as_str(), &9);
@@ -284,7 +279,7 @@ pub async fn delete_word(
         return HttpResponse::Unauthorized().finish();
     }
     let profile_list1 = fetch_profile(&mut conn, user_id.as_str());
-    let profile1 = profile_list1.get(0).unwrap();
+    let profile1 = profile_list1.first().unwrap();
 
     let agent = get_agent(profile1.handle.as_str(), profile1.password.as_str())
         .await
@@ -311,8 +306,7 @@ pub async fn resolve_timed_mutes() {
                 x.push(timed_mute.muted_actor);
             } else {
                 let actor = timed_mute.actor.clone();
-                let mut x: Vec<String> = Vec::new();
-                x.push(timed_mute.muted_actor);
+                let x: Vec<String> = vec![timed_mute.muted_actor];
                 resolved_timed_mutes.insert(actor, x);
             }
         }
@@ -320,7 +314,7 @@ pub async fn resolve_timed_mutes() {
 
     for (key, value) in resolved_timed_mutes {
         let profile_list = fetch_profile_v1(&mut conn, key.as_str());
-        let profile = profile_list.get(0).unwrap();
+        let profile = profile_list.first().unwrap();
 
         let agent_res = get_agent(profile.handle.as_str(), profile.password.as_str())
             .await
@@ -346,8 +340,7 @@ pub async fn resolve_timed_mutes() {
                 x.push(timed_mute_word.muted_word);
             } else {
                 let actor = timed_mute_word.actor.clone();
-                let mut x: Vec<String> = Vec::new();
-                x.push(timed_mute_word.muted_word);
+                let x: Vec<String> = vec![timed_mute_word.muted_word];
                 resolved_timed_mute_words.insert(actor, x);
             }
         }
@@ -355,7 +348,7 @@ pub async fn resolve_timed_mutes() {
 
     for (key, value) in resolved_timed_mute_words {
         let profile_list = fetch_profile_v1(&mut conn, key.as_str());
-        let profile = profile_list.get(0).unwrap();
+        let profile = profile_list.first().unwrap();
 
         let agent_res = get_agent(profile.handle.as_str(), profile.password.as_str())
             .await

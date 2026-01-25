@@ -25,7 +25,6 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 pub mod agent;
-mod errors;
 pub mod helper;
 pub mod models;
 mod scheduler;
@@ -38,13 +37,13 @@ pub const APPLICATION_JSON: &str = "application/json";
 pub type DBPool = Pool<ConnectionManager<SqliteConnection>>;
 pub type DBPooledConnection = PooledConnection<ConnectionManager<SqliteConnection>>;
 
-pub const USER_ID_KEY: &'static str = "user_id";
-pub const USER_HANDLE_KEY: &'static str = "user_handle";
-pub const DID_KEY: &'static str = "did";
-pub const ACTIVE_KEY: &'static str = "active";
-pub const ACCESS_JWT_KEY: &'static str = "access_jwt";
-pub const REFRESH_JWT_KEY: &'static str = "refresh_jwt";
-pub const COOKIE_DATE_KEY: &'static str = "cookie_date";
+pub const USER_ID_KEY: &str = "user_id";
+pub const USER_HANDLE_KEY: &str = "user_handle";
+pub const DID_KEY: &str = "did";
+pub const ACTIVE_KEY: &str = "active";
+pub const ACCESS_JWT_KEY: &str = "access_jwt";
+pub const REFRESH_JWT_KEY: &str = "refresh_jwt";
+pub const COOKIE_DATE_KEY: &str = "cookie_date";
 
 #[derive(OpenApi)]
 #[openapi(
@@ -112,7 +111,7 @@ fn init_http_server(
     server_port: &str,
     worker_count: &str,
 ) -> Server {
-    return HttpServer::new(move || {
+    HttpServer::new(move || {
         let secret_key = actix_web::cookie::Key::from(&[0; 64]);
         let cors = create_cors(allowed_origin.as_str());
         let cookie_middleware = create_cookie_middleware(secret_key);
@@ -139,7 +138,7 @@ fn init_http_server(
     .bind(format!("0.0.0.0:{}", server_port))
     .unwrap()
     .workers(worker_count.parse::<usize>().unwrap_or(2))
-    .run();
+    .run()
 }
 
 #[actix_rt::main]

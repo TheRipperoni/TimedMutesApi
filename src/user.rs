@@ -27,7 +27,7 @@ pub async fn login(
     if agent_res.is_err() {
         return HttpResponse::BadRequest()
             .content_type(APPLICATION_JSON)
-            .json({});
+            .json(());
     }
 
     let agent = agent_res.expect("Unable to get agent");
@@ -41,7 +41,7 @@ pub async fn login(
             bsky_session.handle.as_str(),
             req.password.as_str(),
         );
-    } else if profiles.get(0).unwrap().password.eq(&req.password) {
+    } else if profiles.first().unwrap().password.eq(&req.password) {
         update_profile(
             &mut conn,
             bsky_session.did.as_str(),
