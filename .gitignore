@@ -1,4 +1,6 @@
 /target
 /.env
-/diesel.toml
 /.cargo.lock
+/migrations/.keep
+/.output.txt
+/.git_backup/

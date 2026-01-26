@@ -25,6 +25,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 pub mod agent;
+pub mod error;
 pub mod helper;
 pub mod models;
 mod scheduler;
@@ -110,8 +111,8 @@ fn init_http_server(
     pool: Pool<ConnectionManager<SqliteConnection>>,
     server_port: &str,
     worker_count: &str,
-) -> Server {
-    HttpServer::new(move || {
+) -> io::Result<Server> {
+    let server = HttpServer::new(move || {
         let secret_key = actix_web::cookie::Key::from(&[0; 64]);
         let cors = create_cors(allowed_origin.as_str());
         let cookie_middleware = create_cookie_middleware(secret_key);
@@ -135,10 +136,10 @@ fn init_http_server(
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
             )
     })
-    .bind(format!("0.0.0.0:{}", server_port))
-    .unwrap()
+    .bind(format!("0.0.0.0:{}", server_port))?
     .workers(worker_count.parse::<usize>().unwrap_or(2))
-    .run()
+    .run();
+    Ok(server)
 }
 
 #[actix_rt::main]
@@ -171,6 +172,6 @@ async fn main() -> io::Result<()> {
         db_pool,
         server_port.as_str(),
         worker_count.as_str(),
-    );
+    )?;
     server.await
 }

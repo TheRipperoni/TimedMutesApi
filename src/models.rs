@@ -112,3 +112,42 @@ pub struct NewTimedMuteWord<'a> {
     pub expiration_date: &'a i64,
     pub status: &'a i32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timed_mute_new() {
+        let tm = TimedMute::new("actor1".to_string(), "muted1".to_string(), 1000, 2000, 0);
+        assert_eq!(tm.actor, "actor1");
+        assert_eq!(tm.muted_actor, "muted1");
+        assert_eq!(tm.created_date, 1000);
+        assert_eq!(tm.expiration_date, 2000);
+        assert_eq!(tm.status, 0);
+    }
+
+    #[test]
+    fn test_profile_new() {
+        let p = Profile::new(
+            "did1".to_string(),
+            "handle1".to_string(),
+            "pass1".to_string(),
+            0,
+        );
+        assert_eq!(p.did, "did1");
+        assert_eq!(p.handle, "handle1");
+        assert_eq!(p.password, "pass1");
+        assert_eq!(p.status, 0);
+    }
+
+    #[test]
+    fn test_timed_mute_word_new() {
+        let tmw = TimedMuteWord::new("actor1".to_string(), "word1".to_string(), 1000, 2000, 0);
+        assert_eq!(tmw.actor, "actor1");
+        assert_eq!(tmw.muted_word, "word1");
+        assert_eq!(tmw.created_date, 1000);
+        assert_eq!(tmw.expiration_date, 2000);
+        assert_eq!(tmw.status, 0);
+    }
+}

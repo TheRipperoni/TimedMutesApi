@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use bsky_sdk::api::app::bsky::actor::defs::{
     MutedWord, MutedWordData, Preferences, PreferencesItem,
 };
@@ -7,15 +8,20 @@ use bsky_sdk::BskyAgent;
 use ipld_core::ipld::Ipld;
 use std::str::FromStr;
 
-pub type GetAgentResult = Result<BskyAgent, Box<dyn std::error::Error>>;
-pub type MuteActorResult =
-    bsky_sdk::api::xrpc::Result<(), bsky_sdk::api::app::bsky::graph::mute_actor::Error>;
-pub type UnmuteActorResult =
-    bsky_sdk::api::xrpc::Result<(), bsky_sdk::api::app::bsky::graph::unmute_actor::Error>;
+pub type Result<T> = std::result::Result<T, AppError>;
+pub type GetAgentResult = Result<BskyAgent>;
+pub type MuteActorResult = Result<()>;
+pub type UnmuteActorResult = Result<()>;
 
 pub async fn get_agent(username: &str, password: &str) -> GetAgentResult {
-    let agent: BskyAgent = BskyAgent::builder().build().await?;
-    agent.login(username, password).await?;
+    let agent: BskyAgent = BskyAgent::builder()
+        .build()
+        .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
+    agent
+        .login(username, password)
+        .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
     Ok(agent)
 }
 
@@ -28,11 +34,14 @@ pub async fn mute_actor(agent: &BskyAgent, actor: &str) -> MuteActorResult {
         .graph
         .mute_actor(Input {
             data: InputData {
-                actor: AtIdentifier::from_str(actor).unwrap(),
+                actor: AtIdentifier::from_str(actor)
+                    .map_err(|e| AppError::BskyError(e.to_string()))?,
             },
             extra_data: Ipld::Null,
         })
         .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
+    Ok(())
 }
 
 pub async fn unmute_actor(agent: &BskyAgent, actor: &str) -> UnmuteActorResult {
@@ -44,14 +53,17 @@ pub async fn unmute_actor(agent: &BskyAgent, actor: &str) -> UnmuteActorResult {
         .graph
         .unmute_actor(Input {
             data: InputData {
-                actor: AtIdentifier::from_str(actor).unwrap(),
+                actor: AtIdentifier::from_str(actor)
+                    .map_err(|e| AppError::BskyError(e.to_string()))?,
             },
             extra_data: Ipld::Null,
         })
         .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
+    Ok(())
 }
 
-pub async fn get_preferences(agent: &BskyAgent) -> Preferences {
+pub async fn get_preferences(agent: &BskyAgent) -> Result<Preferences> {
     use bsky_sdk::api::app::bsky::actor::get_preferences::{Parameters, ParametersData};
     let res = agent
         .api
@@ -62,12 +74,13 @@ pub async fn get_preferences(agent: &BskyAgent) -> Preferences {
             data: ParametersData {},
             extra_data: Ipld::Null,
         })
-        .await;
+        .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
 
-    res.unwrap().preferences.clone()
+    Ok(res.preferences.clone())
 }
 
-pub async fn put_preferences(agent: &BskyAgent, preference: Preferences) {
+pub async fn put_preferences(agent: &BskyAgent, preference: Preferences) -> Result<()> {
     use bsky_sdk::api::app::bsky::actor::put_preferences::{Input, InputData};
     agent
         .api
@@ -81,7 +94,8 @@ pub async fn put_preferences(agent: &BskyAgent, preference: Preferences) {
             extra_data: Ipld::Null,
         })
         .await
-        .unwrap();
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
+    Ok(())
 }
 
 pub async fn unmute_actor_by_handle(agent: &BskyAgent, actor_handle: &str) -> UnmuteActorResult {
@@ -93,15 +107,21 @@ pub async fn unmute_actor_by_handle(agent: &BskyAgent, actor_handle: &str) -> Un
         .graph
         .unmute_actor(Input {
             data: InputData {
-                actor: AtIdentifier::Handle(actor_handle.parse().unwrap()),
+                actor: AtIdentifier::Handle(
+                    actor_handle
+                        .parse()
+                        .map_err(|e| AppError::BskyError(format!("{:?}", e)))?,
+                ),
             },
             extra_data: Ipld::Null,
         })
         .await
+        .map_err(|e| AppError::BskyError(e.to_string()))?;
+    Ok(())
 }
 
-pub async fn add_mute_word_to_pref(agent: &BskyAgent, mute_word: String) {
-    let mut preferences = get_preferences(agent).await;
+pub async fn add_mute_word_to_pref(agent: &BskyAgent, mute_word: String) -> Result<()> {
+    let mut preferences = get_preferences(agent).await?;
     for preference in &mut preferences {
         match preference {
             Union::Refs(ref mut preference_item) => {
@@ -119,11 +139,11 @@ pub async fn add_mute_word_to_pref(agent: &BskyAgent, mute_word: String) {
             Union::Unknown(_b) => {}
         }
     }
-    put_preferences(agent, preferences).await;
+    put_preferences(agent, preferences).await
 }
 
-pub async fn remove_mute_word_from_pref(agent: &BskyAgent, mute_word: String) {
-    let mut preferences = get_preferences(agent).await;
+pub async fn remove_mute_word_from_pref(agent: &BskyAgent, mute_word: String) -> Result<()> {
+    let mut preferences = get_preferences(agent).await?;
     for preference in &mut preferences {
         match preference {
             Union::Refs(ref mut preference_item) => {
@@ -134,5 +154,5 @@ pub async fn remove_mute_word_from_pref(agent: &BskyAgent, mute_word: String) {
             Union::Unknown(_b) => {}
         }
     }
-    put_preferences(agent, preferences).await;
+    put_preferences(agent, preferences).await
 }

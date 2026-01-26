@@ -24,6 +24,7 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
 utoipa-redoc = { version = "4.0.0", features = ["actix-web"] }
 utoipa-rapidoc = { version = "4.0.0", features = ["actix-web"] }
 derive_more = "0.99.18"
+serde_json = "1.0"
 
 [[bin]]
 name = "TimedMutes"
