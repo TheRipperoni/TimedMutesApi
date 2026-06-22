@@ -16,11 +16,14 @@ RUN cargo build --release
 # Start a new stage to create a smaller image without unnecessary build dependencies
 FROM rust:slim
 
-RUN apt-get update
-RUN apt-get install sqlite3 -y
+RUN apt-get update && apt-get install sqlite3 -y
 
 # Copy the built binary from the previous stage
 COPY --from=builder /app/target/release/TimedMutes .
 
+# Copy the entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Command to run the application
-ENTRYPOINT ["./TimedMutes"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]

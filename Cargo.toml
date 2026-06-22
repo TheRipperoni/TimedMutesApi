@@ -1,29 +1,25 @@
 [package]
 name = "TimedMutes"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 diesel = { version = "2.2.2", features = ["sqlite", "r2d2"] }
-actix-web-httpauth = "0.8.2"
-actix-cors = "0.7.0"
+axum = "0.7.9"
+tower-http = { version = "0.5.2", features = ["cors", "trace"] }
+tower-sessions = "0.12.2"
+tokio = { version = "1.38.0", features = ["full"] }
 dotenvy = "0.15.7"
-actix-rt = "2.10.0"
-actix-web = "4.8.0"
 env_logger = "0.11.4"
 serde = { version = "1.0.204", features = ["derive"] }
 chrono = "0.4.38"
 bsky-sdk = "0.1.6"
 ipld-core = "0.4.1"
 tokio-cron-scheduler = { version = "0.15.1", features = ["signal"] }
-tokio = { version = "1.39.1", features = ["rt", "rt-multi-thread", "macros"] }
-actix-session = { version = "0.11.0", features = ["cookie-session"] }
-utoipa = { version = "5.4.0", features = ["actix_extras"] }
-utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
-utoipa-redoc = { version = "4.0.0", features = ["actix-web"] }
-utoipa-rapidoc = { version = "4.0.0", features = ["actix-web"] }
-derive_more = "0.99.18"
+utoipa = { version = "5.4.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "8", features = ["axum"] }
+derive_more = { version = "2.1.1", features = ["full"] }
 serde_json = "1.0"
 
 [[bin]]

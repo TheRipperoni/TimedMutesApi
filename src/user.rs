@@ -5,10 +5,13 @@ use crate::{
     DBPool, ACCESS_JWT_KEY, ACTIVE_KEY, APPLICATION_JSON, DID_KEY, REFRESH_JWT_KEY,
     USER_HANDLE_KEY, USER_ID_KEY,
 };
-use actix_web::web::{Data, Json};
-use actix_web::{get, post, HttpResponse};
+use axum::extract::{Json, State};
+use axum::response::{IntoResponse, Response};
+use axum::http::header::CONTENT_TYPE;
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use tower_sessions::Session;
 
 #[utoipa::path(
     post,
@@ -19,12 +22,11 @@ use utoipa::ToSchema;
         (status=500, description="Internal Server Error")
     ),
 )]
-#[post("/login")]
 pub async fn login(
-    pool: Data<DBPool>,
-    req: Json<LoginRequest>,
-    session: actix_session::Session,
-) -> Result<HttpResponse, AppError> {
+    State(pool): State<DBPool>,
+    session: Session,
+    Json(req): Json<LoginRequest>,
+) -> Result<Response, AppError> {
     let agent = get_agent(req.username.as_str(), req.password.as_str()).await?;
 
     let bsky_session = agent
@@ -49,27 +51,36 @@ pub async fn login(
         )?;
     }
 
-    session.renew();
+    session.cycle_id().await.map_err(|_| AppError::InternalError)?;
     session
         .insert(USER_ID_KEY, bsky_session.did.clone())
+        .await
         .map_err(|_| AppError::InternalError)?;
     session
         .insert(USER_HANDLE_KEY, bsky_session.handle.clone())
+        .await
         .map_err(|_| AppError::InternalError)?;
     session
         .insert(DID_KEY, bsky_session.did.to_string())
+        .await
         .map_err(|_| AppError::InternalError)?;
     session
         .insert(ACTIVE_KEY, bsky_session.active.unwrap_or(false))
+        .await
         .map_err(|_| AppError::InternalError)?;
     session
         .insert(ACCESS_JWT_KEY, bsky_session.access_jwt.clone())
+        .await
         .map_err(|_| AppError::InternalError)?;
     session
         .insert(REFRESH_JWT_KEY, bsky_session.refresh_jwt.clone())
+        .await
         .map_err(|_| AppError::InternalError)?;
 
-    Ok(HttpResponse::Ok().content_type(APPLICATION_JSON).finish())
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)],
+    ).into_response())
 }
 
 #[utoipa::path(
@@ -82,26 +93,25 @@ pub async fn login(
         (status=200, description="Successfully Logged Out")
     ),
 )]
-#[post("/logout")]
-pub async fn logout(session: actix_session::Session) -> HttpResponse {
-    session.purge();
-    HttpResponse::Ok().finish()
+pub async fn logout(session: Session) -> Response {
+    session.delete().await.ok();
+    StatusCode::OK.into_response()
 }
 
-#[post("/deactivate")]
 pub async fn deactivate(
-    pool: Data<DBPool>,
-    session: actix_session::Session,
-) -> Result<HttpResponse, AppError> {
+    State(pool): State<DBPool>,
+    session: Session,
+) -> Result<Response, AppError> {
     let user_id: String = session
         .get(USER_ID_KEY)
+        .await
         .map_err(|_| AppError::InternalError)?
         .ok_or(AppError::Unauthorized)?;
 
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
     deactivate_profile(&mut conn, user_id.as_str())?;
-    session.purge();
-    Ok(HttpResponse::Ok().finish())
+    session.delete().await.ok();
+    Ok(StatusCode::OK.into_response())
 }
 
 #[utoipa::path(
@@ -115,36 +125,41 @@ pub async fn deactivate(
         (status=401, description="Unauthorized/Not Logged In"),
     ),
 )]
-#[get("/active")]
-pub async fn is_active(session: actix_session::Session) -> Result<HttpResponse, AppError> {
+pub async fn is_active(session: Session) -> Result<Response, AppError> {
     let _ = session
         .get::<String>(USER_ID_KEY)
+        .await
         .map_err(|_| AppError::InternalError)?
         .ok_or(AppError::Unauthorized)?;
 
     let body = IsActiveSuccessResponse {
         access_jwt: session
             .get::<String>(ACCESS_JWT_KEY)
+            .await
             .map_err(|_| AppError::InternalError)?
             .ok_or(AppError::Unauthorized)?,
         refresh_jwt: session
             .get::<String>(REFRESH_JWT_KEY)
+            .await
             .map_err(|_| AppError::InternalError)?
             .ok_or(AppError::Unauthorized)?,
         did: session
             .get::<String>(DID_KEY)
+            .await
             .map_err(|_| AppError::InternalError)?
             .ok_or(AppError::Unauthorized)?,
         active: session
             .get::<bool>(ACTIVE_KEY)
+            .await
             .map_err(|_| AppError::InternalError)?
             .ok_or(AppError::Unauthorized)?,
         handle: session
             .get::<String>(USER_HANDLE_KEY)
+            .await
             .map_err(|_| AppError::InternalError)?
             .ok_or(AppError::Unauthorized)?,
     };
-    Ok(HttpResponse::Ok().json(body))
+    Ok(axum::Json(body).into_response())
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]

@@ -1,26 +1,29 @@
-use actix_web::{HttpResponse, ResponseError};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use derive_more::Display;
 use diesel::r2d2;
 use serde_json::json;
 
 #[derive(Debug, Display)]
 pub enum AppError {
-    #[display(fmt = "Database error: {}", _0)]
+    #[display("Database error: {_0}")]
     DatabaseError(diesel::result::Error),
 
-    #[display(fmt = "Pool error: {}", _0)]
+    #[display("Pool error: {_0}")]
     PoolError(String),
 
-    #[display(fmt = "Bskysdk error: {}", _0)]
+    #[display("Bskysdk error: {_0}")]
     BskyError(String),
 
-    #[display(fmt = "Not authorized")]
+    #[display("Not authorized")]
     Unauthorized,
 
-    #[display(fmt = "Internal server error")]
+    #[display("Internal server error")]
     InternalError,
 
-    #[display(fmt = "Not found")]
+    #[display("Not found")]
     NotFound,
 }
 
@@ -33,18 +36,22 @@ impl std::error::Error for AppError {
     }
 }
 
-impl ResponseError for AppError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, error_message) = match self {
             AppError::DatabaseError(_) | AppError::InternalError | AppError::PoolError(_) => {
-                HttpResponse::InternalServerError().json(json!({"error": self.to_string()}))
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }
-            AppError::BskyError(e) => HttpResponse::BadRequest().json(json!({"error": e})),
-            AppError::Unauthorized => {
-                HttpResponse::Unauthorized().json(json!({"error": "Unauthorized"}))
-            }
-            AppError::NotFound => HttpResponse::NotFound().json(json!({"error": "Not found"})),
-        }
+            AppError::BskyError(e) => (StatusCode::BAD_REQUEST, e),
+            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "Not found".to_string()),
+        };
+
+        let body = axum::Json(json!({
+            "error": error_message,
+        }));
+
+        (status, body).into_response()
     }
 }
 

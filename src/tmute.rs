@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 use std::env;
 
-use actix_web::web::{Data, Json};
-use actix_web::{get, post, HttpResponse};
+use axum::extract::{Json, State};
+use axum::response::{IntoResponse, Response};
+use axum::http::header::CONTENT_TYPE;
+use axum::http::StatusCode;
 use bsky_sdk::api::app::bsky::actor::get_profile::{Parameters, ParametersData};
 use bsky_sdk::api::types::string::AtIdentifier;
 use bsky_sdk::api::types::string::AtIdentifier::Handle;
 use ipld_core::ipld::Ipld;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use tower_sessions::Session;
 
 use crate::agent::{
     add_mute_word_to_pref, get_agent, mute_actor, remove_mute_word_from_pref, unmute_actor,
@@ -23,9 +26,10 @@ use crate::helper::{
 use crate::models::TimedMute;
 use crate::{DBPool, APPLICATION_JSON, USER_ID_KEY};
 
-fn get_user_id(session: actix_session::Session) -> Result<String, AppError> {
+async fn get_user_id(session: Session) -> Result<String, AppError> {
     session
         .get(USER_ID_KEY)
+        .await
         .map_err(|_| AppError::InternalError)?
         .ok_or(AppError::Unauthorized)
 }
@@ -41,17 +45,18 @@ fn get_user_id(session: actix_session::Session) -> Result<String, AppError> {
         (status=401, description="Unauthorized"),
     ),
 )]
-#[get("/timed-mute-words")]
 pub async fn list_word(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
     let mute_list = fetch_timed_mute_words(&mut conn, user_id.as_str());
-    Ok(HttpResponse::Ok()
-        .content_type(APPLICATION_JSON)
-        .json(mute_list))
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)],
+        axum::Json(mute_list)
+    ).into_response())
 }
 
 #[utoipa::path(
@@ -65,17 +70,18 @@ pub async fn list_word(
         (status=401, description="Unauthorized"),
     ),
 )]
-#[get("/timed-mutes")]
 pub async fn list(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
     let mute_list = fetch_timed_mutes(&mut conn, user_id.as_str());
-    Ok(HttpResponse::Ok()
-        .content_type(APPLICATION_JSON)
-        .json(mute_list))
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)],
+        axum::Json(mute_list)
+    ).into_response())
 }
 
 #[utoipa::path(
@@ -89,13 +95,12 @@ pub async fn list(
         (status=401, description="Unauthorized"),
     ),
 )]
-#[post("/timed-mute")]
 pub async fn create(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-    req: Json<CreateTimedMuteRequest>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+    Json(req): Json<CreateTimedMuteRequest>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
 
     let create_time = chrono::offset::Utc::now().timestamp();
@@ -112,7 +117,11 @@ pub async fn create(
         let response = BadHandle {
             error: e.to_string(),
         };
-        return Ok(HttpResponse::BadRequest().json(response));
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            [(CONTENT_TYPE, APPLICATION_JSON)],
+            axum::Json(response)
+        ).into_response());
     }
     let other_handle: AtIdentifier = Handle(
         req.muted_actor_handle
@@ -143,13 +152,18 @@ pub async fn create(
         &expire_time,
         &0,
     )?;
-    Ok(HttpResponse::Ok().content_type(APPLICATION_JSON).finish())
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)]
+    ).into_response())
 }
 
-#[post("/trigger")]
-pub async fn trigger() -> HttpResponse {
+pub async fn trigger() -> Response {
     resolve_timed_mutes().await;
-    HttpResponse::Ok().content_type(APPLICATION_JSON).finish()
+    (
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)]
+    ).into_response()
 }
 
 #[utoipa::path(
@@ -162,13 +176,12 @@ pub async fn trigger() -> HttpResponse {
         (status=200, description="Successfully delete timed mute")
     ),
 )]
-#[post("/deleteTimedMute")]
 pub async fn delete(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-    req: Json<DeleteTimedMuteRequest>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+    Json(req): Json<DeleteTimedMuteRequest>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
 
     let success = update_timed_mute(
@@ -188,7 +201,10 @@ pub async fn delete(
 
     unmute_actor(&agent_res, req.muted_actor_did.as_str()).await?;
 
-    Ok(HttpResponse::Ok().content_type(APPLICATION_JSON).finish())
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)]
+    ).into_response())
 }
 
 #[utoipa::path(
@@ -202,13 +218,12 @@ pub async fn delete(
         (status=401, description="Unauthorized"),
     ),
 )]
-#[post("/timed-mute-word")]
 pub async fn create_word(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-    req: Json<CreateTimedMuteWordRequest>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+    Json(req): Json<CreateTimedMuteWordRequest>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
 
     let create_time = chrono::offset::Utc::now().timestamp();
@@ -228,7 +243,10 @@ pub async fn create_word(
         &expire_time,
         &0,
     )?;
-    Ok(HttpResponse::Ok().content_type(APPLICATION_JSON).finish())
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)]
+    ).into_response())
 }
 
 #[utoipa::path(
@@ -241,13 +259,12 @@ pub async fn create_word(
         (status=200, description="Successfully delete timed mute")
     ),
 )]
-#[post("/deleteTimedMuteWord")]
 pub async fn delete_word(
-    session: actix_session::Session,
-    pool: Data<DBPool>,
-    req: Json<DeleteTimedMuteWordRequest>,
-) -> Result<HttpResponse, AppError> {
-    let user_id = get_user_id(session)?;
+    session: Session,
+    State(pool): State<DBPool>,
+    Json(req): Json<DeleteTimedMuteWordRequest>,
+) -> Result<Response, AppError> {
+    let user_id = get_user_id(session).await?;
     let mut conn = pool.get().map_err(|e| AppError::PoolError(e.to_string()))?;
 
     let success = update_timed_mute_word(&mut conn, user_id.as_str(), req.muted_word.as_str(), &9)?;
@@ -261,7 +278,10 @@ pub async fn delete_word(
 
     remove_mute_word_from_pref(&agent, req.muted_word.clone()).await?;
 
-    Ok(HttpResponse::Ok().content_type(APPLICATION_JSON).finish())
+    Ok((
+        StatusCode::OK,
+        [(CONTENT_TYPE, APPLICATION_JSON)]
+    ).into_response())
 }
 
 pub async fn resolve_timed_mutes() {

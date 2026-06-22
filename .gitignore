@@ -4,3 +4,7 @@
 /migrations/.keep
 /.output.txt
 /.git_backup/
+
+# IDE and OS files
+.idea/
+.DS_Store
